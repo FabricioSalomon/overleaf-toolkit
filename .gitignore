@@ -1,0 +1,18 @@
+# Upstream Toolkit — clonado por bootstrap.sh, nunca versionado aqui
+toolkit/
+
+# Dados de runtime (projetos, Mongo, Redis) — NUNCA commitar
+data/
+*.tar.gz
+*.dump
+
+# Backups gerados por bin/backup-config
+config/*.bak
+config/backup/
+
+# Segredos avulsos
+*.pem
+*.key
+*.crt
+.env
+.env.local
