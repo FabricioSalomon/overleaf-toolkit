@@ -1,69 +1,44 @@
-# overleaf-toolkit
+# Overleaf (snapshot)
 
-Deploy self-hosted do **Overleaf** via [Overleaf Toolkit](https://docs.overleaf.com/on-premises/getting-started/what-is-the-overleaf-toolkit).
+Cópia congelada do Overleaf que estava rodando aqui. Não puxa imagem da Overleaf nem do Docker Hub. Se eles tirarem tudo do ar, isto continua.
 
-O Toolkit é o método de deploy on-premises recomendado pela própria Overleaf para
-Community Edition (CE) e Server Pro. Ele é essencialmente um wrapper em volta do
-`docker compose`: `bin/docker-compose` carrega os arquivos de config antes de
-chamar o compose real, e a pasta `bin/` traz os utilitários do dia a dia.
+## Como abrir
 
-## Estrutura
+1. Instale o [Docker Desktop](https://www.docker.com/products/docker-desktop/), abra e espere o ícone ficar verde.
+2. Rode **um** destes:
 
+```bash
+npm start
 ```
-.
-├── dev            # ponto de entrada único — use este
-├── bootstrap.sh   # clona o Toolkit upstream e liga a config deste repo nele
-├── config/        # SUA configuração (overleaf.rc, variables.env, version)
-├── docs/          # notas de operação
-└── toolkit/       # clone do overleaf/toolkit (gitignored, upstream)
-```
-
-A ideia: o código do Toolkit fica upstream e atualizável com `git pull`;
-só a **sua** configuração é versionada aqui.
-
-## Quick start
 
 ```bash
 ./dev
 ```
 
-Só isso. O `./dev` faz o bootstrap sozinho na primeira execução (clona o Toolkit,
-gera a config, liga o symlink) e sobe os containers. Nas próximas vezes ele só sobe.
+No Windows, pode dar dois cliques em `start.cmd`.
 
-Depois abra `http://localhost/launchpad` para criar a conta admin.
+3. Abra http://localhost/launchpad e crie a conta admin (só na primeira vez).
 
-## Comandos
+A primeira subida carrega as imagens do próprio repo — alguns GB, demora. Depois é rápido.
 
 | Comando | Para quê |
 |---|---|
-| `./dev` | sobe o Overleaf (attached) |
-| `./dev up -d` | sobe em background |
-| `./dev stop` / `./dev restart` | para / reinicia |
-| `./dev status` | o que está rodando |
-| `./dev logs` | segue os logs |
-| `./dev shell` / `./dev mongo` | shell no container / no MongoDB |
-| `./dev doctor` | diagnóstico do deploy |
-| `./dev upgrade` | atualizar a versão do Overleaf |
-| `./dev texlive-full` | instala TeX Live completo **e persiste na imagem** |
+| `npm start` / `./dev` | sobe |
+| `npm stop` / `./dev stop` | para |
+| `npm run logs` / `./dev logs` | logs |
 
-`./dev help` lista tudo. Os scripts originais do Toolkit continuam em
-`toolkit/bin/` se você precisar de algo que o `./dev` não cobre.
+Não precisa atualizar nada. A versão está pinada.
 
-## Antes de subir em produção, leia
+## Uma vez: congelar as imagens neste repo
 
-- [docs/texlive-full.md](docs/texlive-full.md) — **a imagem oficial vem com TeX Live
-  mínimo.** Sem isso, metade dos seus `\usepackage` quebra. O `./dev texlive-full`
-  automatiza a correção, mas leia para entender o que ele faz.
-- [docs/community-edition-plus.md](docs/community-edition-plus.md) — o que a CE
-  *não* tem em relação ao overleaf.com, e o fork da comunidade que reimplementa
-  parte disso.
+Isto só precisa rodar na máquina onde o Overleaf **já está de pé**, e só se `vendor/images/` ainda estiver vazio:
 
-## Segurança
+```bash
+./dev pack
+git add vendor/images
+git commit
+```
 
-Este repo é privado por um motivo: `config/variables.env` acaba carregando URL do
-site, e-mail do admin e, dependendo do setup, credenciais de SMTP e LDAP.
-Se for abrir para mais gente, mova os segredos para
-[SOPS](https://github.com/getsops/sops) ou git-crypt antes.
+Sem esse commit, outro computador não tem as imagens e o `npm start` recusa subir (de propósito: não cai no Docker Hub).
 
-`data/` (projetos dos usuários, Mongo, Redis) está no `.gitignore` e nunca deve
-ser commitado.
+`data/` (artigos, Mongo, Redis) é de cada máquina e não vai no git. O repo leva o programa, não os projetos das pessoas.

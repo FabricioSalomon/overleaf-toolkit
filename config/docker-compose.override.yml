@@ -1,0 +1,8 @@
+# Nunca puxar do Docker Hub / Overleaf. As imagens vêm de vendor/images/.
+services:
+  sharelatex:
+    pull_policy: never
+  mongo:
+    pull_policy: never
+  redis:
+    pull_policy: never

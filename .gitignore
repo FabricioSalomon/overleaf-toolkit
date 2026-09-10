@@ -1,10 +1,10 @@
-# Upstream Toolkit — clonado por bootstrap.sh, nunca versionado aqui
-toolkit/
-
 # Dados de runtime (projetos, Mongo, Redis) — NUNCA commitar
 data/
-*.tar.gz
 *.dump
+
+# Arquivo unico enorme; o que viaja no git sao as partes em vendor/images/
+*.tar.gz
+!vendor/images/
 
 # Backups gerados por bin/backup-config
 config/*.bak

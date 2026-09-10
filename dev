@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 #
-# Ponto de entrada unico do deploy. Faz bootstrap sozinho se precisar.
+# Ponto de entrada unico. Carrega as imagens do repo e sobe o Overleaf.
 #
-#   ./dev              sobe o Overleaf (bootstrap automatico na primeira vez)
-#   ./dev up -d        sobe em background
+#   ./dev              sobe em background (ou: npm start)
+#   ./dev up -d        idem
 #   ./dev stop         para os containers
 #   ./dev restart      para e sobe de novo
 #   ./dev logs         segue os logs
 #   ./dev shell        shell dentro do container do Overleaf
 #   ./dev mongo        shell do MongoDB
 #   ./dev doctor       diagnostico do deploy
-#   ./dev upgrade      atualiza a versao do Overleaf
-#   ./dev texlive-full instala TeX Live completo e persiste na imagem
+#   ./dev pack         congela as imagens Docker em vendor/images/ (uma vez)
 #   ./dev status       o que esta rodando
 
 set -euo pipefail
@@ -22,76 +21,50 @@ CONTAINER="sharelatex"
 
 die() { echo "erro: $*" >&2; exit 1; }
 
-# Garante que o toolkit existe e a config esta ligada. Idempotente.
+# shellcheck source=scripts/images.sh
+source "$REPO_ROOT/scripts/images.sh"
+
 ensure_bootstrap() {
-  if [ ! -x "$TOOLKIT_DIR/bin/up" ] || [ ! -e "$REPO_ROOT/config/overleaf.rc" ]; then
+  if [ ! -e "$REPO_ROOT/config/overleaf.rc" ] || [ ! -L "$TOOLKIT_DIR/config" ]; then
     echo "==> Primeira execucao, rodando bootstrap"
     "$REPO_ROOT/bootstrap.sh"
   fi
 }
 
-# Roda um script do toolkit repassando os argumentos
 tk() {
   local cmd="$1"; shift
   ensure_bootstrap
   ( cd "$TOOLKIT_DIR" && "./bin/$cmd" "$@" )
 }
 
-# Versao atual do Overleaf, sem sufixo de imagem customizada
-current_version() {
-  local v
-  v="$(tr -d '[:space:]' < "$REPO_ROOT/config/version")"
-  echo "${v%-with-texlive-full}"
-}
-
-cmd_texlive_full() {
+cmd_up() {
   ensure_bootstrap
-
-  docker inspect "$CONTAINER" >/dev/null 2>&1 \
-    || die "container '$CONTAINER' nao esta rodando. Suba com './dev up -d' antes."
-
-  local base tag
-  base="$(current_version)"
-  tag="sharelatex/sharelatex:${base}-with-texlive-full"
-
-  echo "==> Instalando scheme-full no container (demora, sao alguns GB)"
-  docker exec "$CONTAINER" tlmgr install scheme-full
-
-  # Obrigatorio a partir do release 3.3.0: sem isso os binarios novos
-  # nao sao symlinkados no PATH do sistema.
-  echo "==> tlmgr path add"
-  docker exec "$CONTAINER" tlmgr path add
-
-  # As mudancas acima vivem no container, nao na imagem: somem quando o
-  # Compose recriar o container. O commit congela numa imagem nova.
-  echo "==> Congelando em $tag"
-  docker commit "$CONTAINER" "$tag"
-
-  echo "${base}-with-texlive-full" > "$REPO_ROOT/config/version"
-  echo "==> config/version atualizado, subindo de novo"
-  tk up -d
-
-  cat <<MSG
-
-Pronto. TeX Live completo persistido em $tag
-
-Lembre: todo 'dev upgrade' troca a imagem base e voce perde essa camada.
-Rode './dev texlive-full' de novo depois de cada upgrade.
-Commite o config/version novo neste repo.
-MSG
+  ensure_images
+  if [ "$#" -eq 0 ]; then
+    set -- -d
+  fi
+  tk up "$@"
+  local arg
+  for arg in "$@"; do
+    if [ "$arg" = "-d" ] || [ "$arg" = "--detach" ]; then
+      echo
+      echo "Overleaf no ar: http://localhost/launchpad"
+      echo "Para ver logs:  npm run logs   ou   ./dev logs"
+      return 0
+    fi
+  done
 }
 
 case "${1:-up}" in
-  up)            shift || true; tk up "$@" ;;
+  up)            shift || true; cmd_up "$@" ;;
   stop)          shift || true; tk stop "$@" ;;
-  restart)       tk stop; tk up -d ;;
+  restart)       tk stop; cmd_up -d ;;
   logs)          shift || true; tk logs -f "$@" ;;
   shell)         tk shell ;;
   mongo)         tk mongo ;;
   doctor)        tk doctor ;;
-  upgrade)       tk upgrade ;;
-  status)        ensure_bootstrap; ( cd "$TOOLKIT_DIR" && ./bin/docker-compose ps ) ;;
-  texlive-full)  cmd_texlive_full ;;
+  pack)          cmd_pack ;;
+  status)        ensure_bootstrap; ( cd "$TOOLKIT_DIR" && ./bin/docker compose ps ) ;;
   -h|--help|help) awk 'NR>2 && /^#/ {sub(/^# ?/,""); print; next} NR>2 {exit}' "$0" ;;
   *)             die "subcomando desconhecido: $1  (veja './dev help')" ;;
 esac
