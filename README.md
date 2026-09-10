@@ -11,6 +11,7 @@ chamar o compose real, e a pasta `bin/` traz os utilitários do dia a dia.
 
 ```
 .
+├── dev            # ponto de entrada único — use este
 ├── bootstrap.sh   # clona o Toolkit upstream e liga a config deste repo nele
 ├── config/        # SUA configuração (overleaf.rc, variables.env, version)
 ├── docs/          # notas de operação
@@ -23,29 +24,36 @@ só a **sua** configuração é versionada aqui.
 ## Quick start
 
 ```bash
-./bootstrap.sh
-cd toolkit
-./bin/up
+./dev
 ```
+
+Só isso. O `./dev` faz o bootstrap sozinho na primeira execução (clona o Toolkit,
+gera a config, liga o symlink) e sobe os containers. Nas próximas vezes ele só sobe.
 
 Depois abra `http://localhost/launchpad` para criar a conta admin.
 
-## Comandos do Toolkit
+## Comandos
 
 | Comando | Para quê |
 |---|---|
-| `bin/up` / `bin/start` / `bin/stop` | ciclo de vida dos containers |
-| `bin/shell` | shell dentro do container do Overleaf |
-| `bin/mongo` | shell do MongoDB |
-| `bin/logs` | logs dos serviços |
-| `bin/upgrade` | atualizar a versão do Overleaf |
-| `bin/backup-config` | backup da configuração |
-| `bin/doctor` | diagnóstico do deploy |
+| `./dev` | sobe o Overleaf (attached) |
+| `./dev up -d` | sobe em background |
+| `./dev stop` / `./dev restart` | para / reinicia |
+| `./dev status` | o que está rodando |
+| `./dev logs` | segue os logs |
+| `./dev shell` / `./dev mongo` | shell no container / no MongoDB |
+| `./dev doctor` | diagnóstico do deploy |
+| `./dev upgrade` | atualizar a versão do Overleaf |
+| `./dev texlive-full` | instala TeX Live completo **e persiste na imagem** |
+
+`./dev help` lista tudo. Os scripts originais do Toolkit continuam em
+`toolkit/bin/` se você precisar de algo que o `./dev` não cobre.
 
 ## Antes de subir em produção, leia
 
 - [docs/texlive-full.md](docs/texlive-full.md) — **a imagem oficial vem com TeX Live
-  mínimo.** Sem isso, metade dos seus `\usepackage` quebra. Leia primeiro.
+  mínimo.** Sem isso, metade dos seus `\usepackage` quebra. O `./dev texlive-full`
+  automatiza a correção, mas leia para entender o que ele faz.
 - [docs/community-edition-plus.md](docs/community-edition-plus.md) — o que a CE
   *não* tem em relação ao overleaf.com, e o fork da comunidade que reimplementa
   parte disso.
