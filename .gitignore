@@ -16,3 +16,6 @@ config/backup/
 *.crt
 .env
 .env.local
+
+__pycache__/
+*.pyc

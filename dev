@@ -12,6 +12,7 @@
 #   ./dev doctor       diagnostico do deploy
 #   ./dev pack         congela as imagens Docker em vendor/images/ (uma vez)
 #   ./dev status       o que esta rodando
+#   ./dev projects     seed | export | watch da pasta projects/
 
 set -euo pipefail
 
@@ -37,6 +38,34 @@ tk() {
   ( cd "$TOOLKIT_DIR" && "./bin/$cmd" "$@" )
 }
 
+REPLICA_PID="$REPO_ROOT/toolkit/data/projects-replica.pid"
+
+stop_replica_watcher() {
+  if [ -f "$REPLICA_PID" ]; then
+    local pid
+    pid="$(cat "$REPLICA_PID" 2>/dev/null || true)"
+    if [ -n "${pid}" ] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+    rm -f "$REPLICA_PID"
+  fi
+}
+
+start_replica_watcher() {
+  stop_replica_watcher
+  mkdir -p "$REPO_ROOT/toolkit/data"
+  python3 "$REPO_ROOT/scripts/projects_replica.py" watch \
+    >> "$REPO_ROOT/toolkit/data/projects-replica.log" 2>&1 &
+  echo $! > "$REPLICA_PID"
+}
+
+sync_projects() {
+  stop_replica_watcher
+  python3 "$REPO_ROOT/scripts/projects_replica.py" seed \
+    || echo "aviso: a pasta projects/ nao foi aplicada no Mongo. O Overleaf esta no ar." >&2
+  start_replica_watcher
+}
+
 cmd_up() {
   ensure_bootstrap
   ensure_images
@@ -50,6 +79,7 @@ cmd_up() {
       echo
       echo "Overleaf no ar: http://localhost/launchpad"
       echo "Para ver logs:  npm run logs   ou   ./dev logs"
+      sync_projects
       return 0
     fi
   done
@@ -57,14 +87,15 @@ cmd_up() {
 
 case "${1:-up}" in
   up)            shift || true; cmd_up "$@" ;;
-  stop)          shift || true; tk stop "$@" ;;
-  restart)       tk stop; cmd_up -d ;;
+  stop)          shift || true; stop_replica_watcher; tk stop "$@" ;;
+  restart)       stop_replica_watcher; tk stop; cmd_up -d ;;
   logs)          shift || true; tk logs -f "$@" ;;
   shell)         tk shell ;;
   mongo)         tk mongo ;;
   doctor)        tk doctor ;;
   pack)          cmd_pack ;;
   status)        ensure_bootstrap; ( cd "$TOOLKIT_DIR" && ./bin/docker compose ps ) ;;
+  projects)      shift || true; python3 "$REPO_ROOT/scripts/projects_replica.py" "$@" ;;
   -h|--help|help) awk 'NR>2 && /^#/ {sub(/^# ?/,""); print; next} NR>2 {exit}' "$0" ;;
   *)             die "subcomando desconhecido: $1  (veja './dev help')" ;;
 esac

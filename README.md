@@ -41,4 +41,13 @@ git commit
 
 Sem esse commit, outro computador não tem as imagens e o `npm start` recusa subir (de propósito: não cai no Docker Hub).
 
-`data/` (artigos, Mongo, Redis) é de cada máquina e não vai no git. O repo leva o programa, não os projetos das pessoas.
+`data/` (Mongo, Redis, compilações) é de cada máquina e não vai no git.
+
+## Projetos LaTeX neste repo
+
+A pasta `projects/` é a cópia dos arquivos de cada projeto. O editor continua lendo o Mongo.
+
+- `npm start` lê `projects/` e grava esses arquivos no Mongo.
+- Cada Recompile no Overleaf atualiza a pasta daquele projeto.
+
+O que entra no git são os `.tex`, figuras e o resto que está em `projects/`. O banco em si fica de fora.
