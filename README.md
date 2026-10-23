@@ -17,7 +17,12 @@ npm start
 
 No Windows, pode dar dois cliques em `start.cmd`.
 
-3. Abra http://localhost/launchpad e crie a conta admin (só na primeira vez).
+3. Abra http://localhost/login e entre com o admin do seed:
+
+    - email: `admin@test.com`
+    - senha: `admin1234`
+
+   O projeto `test-example` já aparece na lista.
 
 A primeira subida carrega as imagens do próprio repo — alguns GB, demora. Depois é rápido.
 
@@ -45,7 +50,7 @@ Sem esse commit, outro computador não tem as imagens e o `npm start` recusa sub
 
 ## Projetos LaTeX neste repo
 
-A pasta `projects/` é a cópia dos arquivos de cada projeto. O editor continua lendo o Mongo.
+A pasta `projects/` é a cópia dos arquivos de cada projeto. O editor continua lendo o Mongo. Na primeira subida o seed cria o admin `admin@test.com` / `admin1234` e grava esses projetos na conta dele.
 
 - `npm start` lê `projects/` e grava esses arquivos no Mongo.
 - Cada Recompile no Overleaf atualiza a pasta daquele projeto.

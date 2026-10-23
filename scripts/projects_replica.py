@@ -11,6 +11,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import http.cookiejar
 import json
 import re
 import subprocess
@@ -25,6 +26,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 PROJECTS = REPO / "projects"
 META_NAME = ".overleaf-id"
+SEED_ADMIN_EMAIL = "admin@test.com"
+SEED_ADMIN_PASSWORD = "admin1234"
 COMPILE_DIR_RE = re.compile(r"^([a-f0-9]{24})-([a-f0-9]{24})$")
 
 TEXT_EXTENSIONS = {
@@ -180,6 +183,9 @@ def choose_user(state: dict, user_id: str | None = None) -> dict | None:
         for user in users:
             if user["id"] == user_id:
                 return user
+    for user in users:
+        if user["email"].lower() == SEED_ADMIN_EMAIL:
+            return user
     admins = [user for user in users if user["isAdmin"]]
     if admins:
         return admins[0]
@@ -543,7 +549,7 @@ def parent_dirs(paths: list[str]) -> set[str]:
 
 
 def wait_for_web() -> None:
-    deadline = time.time() + 90
+    deadline = time.time() + 180
     url = web_base() + "/login"
     while time.time() < deadline:
         try:
@@ -660,18 +666,50 @@ def seed_folder(folder: Path, state: dict) -> int:
     return changes
 
 
+def ensure_seed_admin(state: dict) -> None:
+    if any(user["email"].lower() == SEED_ADMIN_EMAIL for user in state["users"]):
+        say(f"usuario {SEED_ADMIN_EMAIL} ja existe")
+        return
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    with opener.open(web_base() + "/launchpad", timeout=30) as res:
+        html = res.read().decode(errors="replace")
+    match = re.search(r'name="ol-csrfToken" content="([^"]+)"', html)
+    if not match:
+        raise ReplicaError("nao achei o csrf para criar o admin")
+    payload = json.dumps({"email": SEED_ADMIN_EMAIL, "password": SEED_ADMIN_PASSWORD}).encode()
+    req = urllib.request.Request(
+        web_base() + "/launchpad/register_admin",
+        data=payload,
+        headers={
+            "content-type": "application/json",
+            "x-csrf-token": match.group(1),
+        },
+        method="POST",
+    )
+    try:
+        with opener.open(req, timeout=60) as res:
+            body = res.read().decode(errors="replace")
+            status = res.status
+    except urllib.error.HTTPError as err:
+        body = err.read().decode(errors="replace")
+        status = err.code
+    if status >= 300:
+        raise ReplicaError(f"nao criei {SEED_ADMIN_EMAIL} (HTTP {status}): {body[:300]}")
+    say(f"usuario admin criado: {SEED_ADMIN_EMAIL}")
+
+
 def seed() -> int:
+    wait_for_web()
+    state = load_state()
+    ensure_seed_admin(state)
+    state = load_state()
     if not PROJECTS.is_dir():
         say("projects/ ainda nao existe, Mongo permanece como esta")
         return 0
     folders = sorted(path for path in PROJECTS.iterdir() if path.is_dir() and not path.name.startswith("."))
     if not folders:
         say("projects/ vazio, Mongo permanece como esta")
-        return 0
-    wait_for_web()
-    state = load_state()
-    if not state["users"]:
-        say("nenhum usuario ainda. Abra http://localhost/launchpad, crie a conta e rode npm start de novo")
         return 0
     total = 0
     for folder in folders:
