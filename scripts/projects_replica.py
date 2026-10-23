@@ -559,7 +559,7 @@ def wait_for_web() -> None:
         except urllib.error.HTTPError as err:
             if err.code < 500:
                 return
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
             pass
         time.sleep(2)
     raise ReplicaError("Overleaf nao respondeu a tempo")
@@ -670,33 +670,50 @@ def ensure_seed_admin(state: dict) -> None:
     if any(user["email"].lower() == SEED_ADMIN_EMAIL for user in state["users"]):
         say(f"usuario {SEED_ADMIN_EMAIL} ja existe")
         return
-    jar = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-    with opener.open(web_base() + "/launchpad", timeout=30) as res:
-        html = res.read().decode(errors="replace")
-    match = re.search(r'name="ol-csrfToken" content="([^"]+)"', html)
-    if not match:
-        raise ReplicaError("nao achei o csrf para criar o admin")
-    payload = json.dumps({"email": SEED_ADMIN_EMAIL, "password": SEED_ADMIN_PASSWORD}).encode()
-    req = urllib.request.Request(
-        web_base() + "/launchpad/register_admin",
-        data=payload,
-        headers={
-            "content-type": "application/json",
-            "x-csrf-token": match.group(1),
-        },
-        method="POST",
-    )
-    try:
-        with opener.open(req, timeout=60) as res:
-            body = res.read().decode(errors="replace")
-            status = res.status
-    except urllib.error.HTTPError as err:
-        body = err.read().decode(errors="replace")
-        status = err.code
-    if status >= 300:
-        raise ReplicaError(f"nao criei {SEED_ADMIN_EMAIL} (HTTP {status}): {body[:300]}")
-    say(f"usuario admin criado: {SEED_ADMIN_EMAIL}")
+    deadline = time.time() + 120
+    last_error = "sem resposta"
+    while time.time() < deadline:
+        jar = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+        try:
+            with opener.open(web_base() + "/launchpad", timeout=30) as res:
+                html = res.read().decode(errors="replace")
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as err:
+            last_error = str(err)
+            time.sleep(2)
+            continue
+        match = re.search(r'name="ol-csrfToken" content="([^"]+)"', html)
+        if not match:
+            last_error = "launchpad sem csrf"
+            time.sleep(2)
+            continue
+        payload = json.dumps({"email": SEED_ADMIN_EMAIL, "password": SEED_ADMIN_PASSWORD}).encode()
+        req = urllib.request.Request(
+            web_base() + "/launchpad/register_admin",
+            data=payload,
+            headers={
+                "content-type": "application/json",
+                "x-csrf-token": match.group(1),
+            },
+            method="POST",
+        )
+        try:
+            with opener.open(req, timeout=60) as res:
+                body = res.read().decode(errors="replace")
+                status = res.status
+        except urllib.error.HTTPError as err:
+            body = err.read().decode(errors="replace")
+            status = err.code
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as err:
+            last_error = str(err)
+            time.sleep(2)
+            continue
+        if status < 300:
+            say(f"usuario admin criado: {SEED_ADMIN_EMAIL}")
+            return
+        last_error = f"HTTP {status}: {body[:300]}"
+        break
+    raise ReplicaError(f"nao criei {SEED_ADMIN_EMAIL} ({last_error})")
 
 
 def seed() -> int:

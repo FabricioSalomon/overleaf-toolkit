@@ -61,8 +61,7 @@ start_replica_watcher() {
 
 sync_projects() {
   stop_replica_watcher
-  python3 "$REPO_ROOT/scripts/projects_replica.py" seed \
-    || echo "aviso: a pasta projects/ nao foi aplicada no Mongo. O Overleaf esta no ar." >&2
+  python3 "$REPO_ROOT/scripts/projects_replica.py" seed
   start_replica_watcher
 }
 
