@@ -28,7 +28,7 @@ A primeira subida carrega as imagens do próprio repo — alguns GB, demora. Dep
 
 | Comando | Para quê |
 |---|---|
-| `npm start` / `./dev` | sobe |
+| `npm start` / `./dev` | sobe e fica no terminal; Ctrl+C para |
 | `npm stop` / `./dev stop` | para |
 | `npm run logs` / `./dev logs` | logs |
 

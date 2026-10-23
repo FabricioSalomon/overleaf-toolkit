@@ -3,8 +3,8 @@
   "private": true,
   "description": "Snapshot self-hosted do Overleaf. Um comando e sobe.",
   "scripts": {
-    "dev": "bash ./dev up -d",
-    "start": "bash ./dev up -d",
+    "dev": "bash ./dev up",
+    "start": "bash ./dev up",
     "stop": "bash ./dev stop",
     "logs": "bash ./dev logs",
     "pack": "bash ./dev pack"

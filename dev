@@ -2,8 +2,8 @@
 #
 # Ponto de entrada unico. Carrega as imagens do repo e sobe o Overleaf.
 #
-#   ./dev              sobe em background (ou: npm start)
-#   ./dev up -d        idem
+#   ./dev              sobe e fica neste terminal (Ctrl+C para). Ou: npm start
+#   ./dev up -d        sobe em background
 #   ./dev stop         para os containers
 #   ./dev restart      para e sobe de novo
 #   ./dev logs         segue os logs
@@ -68,20 +68,29 @@ sync_projects() {
 cmd_up() {
   ensure_bootstrap
   ensure_images
-  if [ "$#" -eq 0 ]; then
-    set -- -d
-  fi
-  tk up "$@"
-  local arg
+  local arg detach=0
   for arg in "$@"; do
     if [ "$arg" = "-d" ] || [ "$arg" = "--detach" ]; then
-      echo
-      echo "Overleaf no ar: http://localhost/launchpad"
-      echo "Para ver logs:  npm run logs   ou   ./dev logs"
-      sync_projects
-      return 0
+      detach=1
     fi
   done
+  if [ "$detach" -eq 1 ]; then
+    tk up "$@"
+    echo
+    echo "Overleaf no ar: http://localhost/launchpad"
+    echo "Para ver logs:  npm run logs   ou   ./dev logs"
+    echo "Para parar:    npm stop        ou   ./dev stop"
+    sync_projects
+    return 0
+  fi
+
+  trap 'echo; stop_replica_watcher; tk stop; exit 0' INT TERM
+  tk up -d "$@"
+  sync_projects
+  echo
+  echo "Overleaf no ar: http://localhost/launchpad"
+  echo "Ctrl+C para o projeto."
+  tk logs -f
 }
 
 case "${1:-up}" in

@@ -10,15 +10,19 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo Overleaf: http://localhost/launchpad
+echo Ctrl+C para o projeto.
+echo.
+
 where wsl >nul 2>&1
 if not errorlevel 1 (
-  wsl -e bash ./dev up -d
+  wsl -e bash ./dev up
   goto :done
 )
 
 where bash >nul 2>&1
 if not errorlevel 1 (
-  bash ./dev up -d
+  bash ./dev up
   goto :done
 )
 
@@ -28,5 +32,5 @@ exit /b 1
 
 :done
 echo.
-echo Se deu certo, abra: http://localhost/launchpad
+echo Overleaf parado.
 pause
