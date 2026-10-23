@@ -67,7 +67,6 @@ have_image_parts() {
 cmd_pack() {
   require_docker
   mkdir -p "$IMAGES_DIR"
-  rm -f "$IMAGES_PREFIX"* "$IMAGES_MANIFEST"
 
   local img missing=0
   echo "==> Conferindo imagens locais"
@@ -81,11 +80,25 @@ cmd_pack() {
   done < <(snapshot_images)
   [ "$missing" -eq 0 ] || die "alguma imagem do snapshot nao esta no Docker. Suba o Overleaf nesta maquina e rode de novo."
 
-  snapshot_images > "$IMAGES_MANIFEST"
+  local stage
+  stage="$(mktemp -d)"
+
+  snapshot_images > "$stage/manifest"
 
   echo "==> Empacotando (vai demorar, sao alguns GB)"
   # 90MB por parte: abaixo do limite de 100MB do GitHub.
-  docker save $(snapshot_images) | gzip -9 | split -b 90m - "$IMAGES_PREFIX"
+  if ! docker save $(snapshot_images) | gzip -9 | split -b 90m - "$stage/stack.tar.gz.part-"; then
+    rm -rf "$stage"
+    die "empacotamento falhou. As partes antigas em vendor/images/ foram mantidas."
+  fi
+  if ! cat "$stage"/stack.tar.gz.part-* | gzip -t; then
+    rm -rf "$stage"
+    die "o pacote ficou cortado. As partes antigas em vendor/images/ foram mantidas."
+  fi
+
+  rm -f "$IMAGES_PREFIX"* "$IMAGES_MANIFEST"
+  mv "$stage"/stack.tar.gz.part-* "$stage/manifest" "$IMAGES_DIR/"
+  rm -rf "$stage"
 
   local parts size
   parts="$(find "$IMAGES_DIR" -name 'stack.tar.gz.part-*' | wc -l)"
