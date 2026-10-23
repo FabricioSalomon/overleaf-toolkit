@@ -28,6 +28,8 @@ PROJECTS = REPO / "projects"
 META_NAME = ".overleaf-id"
 SEED_ADMIN_EMAIL = "admin@test.com"
 SEED_ADMIN_PASSWORD = "admin1234"
+# O Overleaf recusa senha que contém o trecho antes do @. "admin1234" contém "admin".
+SEED_ADMIN_BOOTSTRAP_EMAIL = "overleaf-seed@example.com"
 COMPILE_DIR_RE = re.compile(r"^([a-f0-9]{24})-([a-f0-9]{24})$")
 
 TEXT_EXTENSIONS = {
@@ -666,9 +668,45 @@ def seed_folder(folder: Path, state: dict) -> int:
     return changes
 
 
+def rename_seed_admin(from_email: str, to_email: str) -> None:
+    host = to_email.split("@", 1)[1][::-1]
+    script = f"""
+const fromEmail = {json.dumps(from_email)};
+const toEmail = {json.dumps(to_email)};
+const host = {json.dumps(host)};
+const res = db.users.updateOne(
+  {{ email: fromEmail }},
+  {{ $set: {{
+    email: toEmail,
+    emails: [{{ email: toEmail, reversedHostname: host, createdAt: new Date() }}]
+  }}}}
+);
+print("JSON:" + JSON.stringify({{ matched: res.matchedCount }}));
+"""
+    raw = check(
+        [
+            "docker", "exec", "-i", docker_container("mongo"),
+            "bash", "-c", "cat > /tmp/replica.js && mongosh sharelatex --quiet --norc --file /tmp/replica.js",
+        ],
+        input_text=script,
+    )
+    matched = None
+    for line in raw.splitlines():
+        marker = line.find("JSON:")
+        if marker != -1:
+            matched = json.loads(line[marker + 5:]).get("matched")
+    if matched != 1:
+        raise ReplicaError(f"nao renomeei o admin para {to_email}")
+
+
 def ensure_seed_admin(state: dict) -> None:
-    if any(user["email"].lower() == SEED_ADMIN_EMAIL for user in state["users"]):
+    emails = {user["email"].lower() for user in state["users"]}
+    if SEED_ADMIN_EMAIL in emails:
         say(f"usuario {SEED_ADMIN_EMAIL} ja existe")
+        return
+    if SEED_ADMIN_BOOTSTRAP_EMAIL in emails:
+        rename_seed_admin(SEED_ADMIN_BOOTSTRAP_EMAIL, SEED_ADMIN_EMAIL)
+        say(f"usuario admin criado: {SEED_ADMIN_EMAIL}")
         return
     deadline = time.time() + 120
     last_error = "sem resposta"
@@ -687,7 +725,10 @@ def ensure_seed_admin(state: dict) -> None:
             last_error = "launchpad sem csrf"
             time.sleep(2)
             continue
-        payload = json.dumps({"email": SEED_ADMIN_EMAIL, "password": SEED_ADMIN_PASSWORD}).encode()
+        payload = json.dumps({
+            "email": SEED_ADMIN_BOOTSTRAP_EMAIL,
+            "password": SEED_ADMIN_PASSWORD,
+        }).encode()
         req = urllib.request.Request(
             web_base() + "/launchpad/register_admin",
             data=payload,
@@ -709,6 +750,7 @@ def ensure_seed_admin(state: dict) -> None:
             time.sleep(2)
             continue
         if status < 300:
+            rename_seed_admin(SEED_ADMIN_BOOTSTRAP_EMAIL, SEED_ADMIN_EMAIL)
             say(f"usuario admin criado: {SEED_ADMIN_EMAIL}")
             return
         last_error = f"HTTP {status}: {body[:300]}"
